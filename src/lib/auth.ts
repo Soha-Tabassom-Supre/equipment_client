@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "@better-auth/mongo-adapter";
 import { db, client } from "@/lib/mongodb";
+import { jwt } from "better-auth/plugins";
 
 export const auth = betterAuth({
   database: mongodbAdapter(db, {
@@ -18,6 +19,7 @@ export const auth = betterAuth({
     },
   },
   user: {
+    modelName: "users",
     additionalFields: {
       role: {
         type: ["customer", "owner"],
@@ -28,6 +30,7 @@ export const auth = betterAuth({
     },
   },
 
+  plugins: [jwt()],
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL,
 });

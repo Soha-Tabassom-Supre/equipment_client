@@ -134,16 +134,34 @@ export default function RegisterPage() {
     }
   };
 
+
+const handleGoogleSignUp = async () => {
+  setError("");
+  setLoading(true);
+
+  try {
+    const { error } = await authClient.signIn.social({
+      provider: "google",
+      callbackURL: "/dashboard",
+    });
+
+    if (error) {
+      setError(error.message || "Google registration failed.");
+      setLoading(false);
+    }
+  } catch {
+    setError("Unable to continue with Google. Please try again.");
+    setLoading(false);
+  }
+};
+
   return (
     <div className="relative flex min-h-[86vh] items-center justify-center px-4 py-14 architectural-grid">
-    
       <div className="pointer-events-none absolute top-16 right-1/4 h-72 w-72 rounded-full bg-[var(--accent-cyan)]/15 blur-[120px]" />
 
       <div className="pointer-events-none absolute bottom-16 left-1/4 h-72 w-72 rounded-full bg-[var(--accent-secondary)]/15 blur-[120px]" />
 
-     
       <div className="relative z-10 w-full max-w-md rounded-3xl specular-card p-8 sm:p-9">
-      
         <div className="inline-flex items-center gap-1.5 rounded-full border border-[var(--accent-cyan)]/30 bg-[var(--accent-cyan)]/10 px-3 py-1 font-mono text-[11px] font-medium text-[var(--accent-cyan)]">
           <Sparkles className="h-3 w-3" />
           <span>New Member Onboarding</span>
@@ -153,12 +171,46 @@ export default function RegisterPage() {
           Create Aetheris Account
         </h1>
 
-        <p className="mt-1 text-xs text-[var(--text-secondary)]">
+        <p className="mt-1 text-xs text-[var(--text-secondary)] mb-4">
           Register to rent calibrated equipment or manage your fleet.
         </p>
 
+        <button
+          type="button"
+          onClick={handleGoogleSignUp}
+          disabled={loading || uploading}
+          className="flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-elevated)] text-sm font-medium transition hover:border-[var(--accent-primary)] hover:bg-[var(--bg-canvas)] disabled:opacity-60"
+        >
+          <svg viewBox="0 0 48 48" className="h-5 w-5" aria-hidden="true">
+            <path
+              fill="#EA4335"
+              d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5Z"
+            />
+            <path
+              fill="#4285F4"
+              d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.25 5.48-4.73 7.18l7.27 5.64c4.25-3.92 7.5-9.72 7.5-17.29Z"
+            />
+            <path
+              fill="#FBBC05"
+              d="M10.53 28.59A14.4 14.4 0 0 1 9.75 24c0-1.59.27-3.12.75-4.59l-7.98-6.19A23.9 23.9 0 0 0 0 24c0 3.88.93 7.55 2.56 10.78l7.97-6.19Z"
+            />
+            <path
+              fill="#34A853"
+              d="M24 48c6.48 0 11.93-2.13 15.9-5.8l-7.27-5.64c-2.02 1.35-4.6 2.15-8.63 2.15-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48Z"
+            />
+          </svg>
+          Continue with Google
+        </button>
+
+        <div className="my-5 flex items-center gap-3">
+          <div className="h-px flex-1 bg-[var(--border-hairline)]" />
+          <span className="font-mono text-[10px] text-[var(--text-secondary)]">
+            OR REGISTER WITH EMAIL
+          </span>
+          <div className="h-px flex-1 bg-[var(--border-hairline)]" />
+        </div>
+
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-         
           <div>
             <label htmlFor="name" className="mb-1.5 block text-xs font-medium">
               Full Name
@@ -180,7 +232,6 @@ export default function RegisterPage() {
             </div>
           </div>
 
-         
           <div>
             <label htmlFor="email" className="mb-1.5 block text-xs font-medium">
               Email Address
@@ -202,7 +253,6 @@ export default function RegisterPage() {
             </div>
           </div>
 
-         
           <div>
             <label className="mb-1.5 block text-xs font-medium">
               I want to join as
@@ -249,7 +299,6 @@ export default function RegisterPage() {
             </div>
           </div>
 
-        
           <div>
             <label htmlFor="photo" className="mb-1.5 block text-xs font-medium">
               Profile Photo (Direct URL or ImgBB Upload)
@@ -293,7 +342,6 @@ export default function RegisterPage() {
             </div>
           </div>
 
-        
           <div>
             <label
               htmlFor="password"
@@ -330,7 +378,6 @@ export default function RegisterPage() {
               </button>
             </div>
 
-           
             <div className="mt-2.5 space-y-1 rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-canvas)]/70 p-2.5 text-[11px]">
               <div
                 className={`flex items-center gap-1.5 ${
@@ -367,14 +414,12 @@ export default function RegisterPage() {
             </div>
           </div>
 
-         
           {error && (
             <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2.5 text-xs text-red-400">
               {error}
             </div>
           )}
 
-         
           <button
             type="submit"
             disabled={loading || uploading}
@@ -386,7 +431,6 @@ export default function RegisterPage() {
           </button>
         </form>
 
-     
         <p className="mt-6 text-center text-xs text-[var(--text-secondary)]">
           Already have an account?{" "}
           <Link
