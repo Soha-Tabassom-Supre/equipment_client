@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { Star } from "lucide-react";
 
+
 const reviews = [
   {
     name: "Alex Morgan",
@@ -80,6 +81,9 @@ export default function CustomerReviewsSection() {
           ))}
         </div>
       </div>
+
+      
+
     </section>
   );
 }
