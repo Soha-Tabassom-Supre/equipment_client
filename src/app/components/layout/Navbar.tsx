@@ -12,7 +12,7 @@ import {
   Sun,
   X,
 } from "lucide-react";
-import { authClient } from "@/lib/auth";
+import { authClient } from "@/lib/auth-client";
 
 
 export default function Navbar() {
