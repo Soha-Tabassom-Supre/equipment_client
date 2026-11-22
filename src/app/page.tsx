@@ -4,6 +4,7 @@ import EquipmentCategoriesSection from "./components/home/EquipmentCategoriesSec
 import HowItWorksSection from "./components/home/HowItWorksSection";
 import TrustedOwnersSection from "./components/home/TrustedOwnersSection";
 import CustomerReviewsSection from "./components/home/CustomerReviewsSection";
+import Footer from "./components/layout/Footer";
 
 export default function Home() {
   return (
@@ -14,6 +15,7 @@ export default function Home() {
       <HowItWorksSection />
       <TrustedOwnersSection />
       <CustomerReviewsSection />
+      <Footer/>
     </main>
   );
 }
