@@ -3,6 +3,7 @@
 import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
+import TelemetryChart from "../components/TelemetryChart";
 
 export default function DashboardLayout({ children }) {
   const { data: session, isPending } = authClient.useSession();
