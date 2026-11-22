@@ -2,7 +2,22 @@
 
 import React, { useState } from "react";
 
-export default function TelemetryChart({ title, subtitle, data }) {
+type ChartDataPoint = {
+  label: string;
+  value: number;
+};
+
+type TelemetryChartProps = {
+  title: string;
+  subtitle: string;
+  data: ChartDataPoint[];
+};
+
+export default function TelemetryChart({
+  title,
+  subtitle,
+  data,
+}: TelemetryChartProps) {
   const [hoveredIdx, setHoveredIdx] = useState(data.length - 1);
 
   const width = 620;
@@ -20,9 +35,13 @@ export default function TelemetryChart({ title, subtitle, data }) {
   const linePath = points
     .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`)
     .join(" ");
-  const areaPath = `${linePath} L ${points[points.length - 1].x} ${
-    height - padY
-  } L ${points[0].x} ${height - padY} Z`;
+
+  const areaPath =
+    points.length > 0
+      ? `${linePath} L ${points[points.length - 1].x} ${
+          height - padY
+        } L ${points[0].x} ${height - padY} Z`
+      : "";
 
   const activePoint = points[hoveredIdx] || points[0];
 
@@ -33,6 +52,7 @@ export default function TelemetryChart({ title, subtitle, data }) {
           <h3 className="text-base font-semibold">{title}</h3>
           <p className="text-xs text-[var(--text-secondary)]">{subtitle}</p>
         </div>
+
         {activePoint && (
           <div className="rounded-xl border border-[var(--accent-primary)]/30 bg-[var(--accent-primary)]/10 px-3.5 py-1.5 text-right">
             <div className="text-[11px] text-[var(--text-secondary)]">
@@ -58,6 +78,7 @@ export default function TelemetryChart({ title, subtitle, data }) {
 
         {[0.25, 0.5, 0.75, 1].map((ratio) => {
           const y = height - padY - ratio * (height - padY * 2);
+
           return (
             <line
               key={ratio}

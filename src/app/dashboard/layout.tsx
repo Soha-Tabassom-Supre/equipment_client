@@ -1,11 +1,14 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
-import TelemetryChart from "../components/TelemetryChart";
 
-export default function DashboardLayout({ children }) {
+type DashboardLayoutProps = {
+  children: ReactNode;
+};
+
+export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const { data: session, isPending } = authClient.useSession();
   const router = useRouter();
 
