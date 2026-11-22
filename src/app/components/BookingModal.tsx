@@ -1,13 +1,15 @@
 "use client";
 
 import React, { useState } from "react";
-import { X, Calendar, CheckCircle2 } from "lucide-react";
+import { X, CheckCircle2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
 interface Equipment {
   _id: string;
   name: string;
-  pricePerDay: number;
+  rentalType: "daily" | "weekly" | "monthly";
+  rentalPrice: number;
+  availableQuantity: number;
 }
 
 interface BookingModalProps {
@@ -18,6 +20,11 @@ interface BookingModalProps {
 export default function BookingModal({ item, onClose }: BookingModalProps) {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [quantity, setQuantity] = useState(1);
+  const [contactNumber, setContactNumber] = useState("");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [additionalNotes, setAdditionalNotes] = useState("");
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
@@ -30,14 +37,45 @@ export default function BookingModal({ item, onClose }: BookingModalProps) {
         )
       : 0;
 
-  const totalAmount = rentalDays > 0 ? rentalDays * item.pricePerDay : 0;
+  let rentalPeriods = 0;
+
+  if (rentalDays > 0) {
+    if (item.rentalType === "daily") {
+      rentalPeriods = rentalDays;
+    } else if (item.rentalType === "weekly") {
+      rentalPeriods = Math.ceil(rentalDays / 7);
+    } else {
+      rentalPeriods = Math.ceil(rentalDays / 30);
+    }
+  }
+
+  const totalAmount = rentalPeriods * item.rentalPrice * quantity;
 
   const handleConfirm = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
-    if (new Date(endDate) <= new Date(startDate)) {
-      setError("End date must be after the start date.");
+    if (!startDate || !endDate || rentalDays <= 0) {
+      setError("Please select valid rental dates.");
+      return;
+    }
+
+    if (
+      !Number.isInteger(quantity) ||
+      quantity < 1 ||
+      quantity > item.availableQuantity
+    ) {
+      setError(`Select a quantity between 1 and ${item.availableQuantity}.`);
+      return;
+    }
+
+    if (!contactNumber.trim()) {
+      setError("Contact number is required.");
+      return;
+    }
+
+    if (!deliveryAddress.trim()) {
+      setError("Delivery address is required.");
       return;
     }
 
@@ -50,6 +88,10 @@ export default function BookingModal({ item, onClose }: BookingModalProps) {
           equipmentId: item._id,
           startDate,
           endDate,
+          quantity,
+          contactNumber,
+          deliveryAddress,
+          additionalNotes,
         }),
       });
 
@@ -92,7 +134,7 @@ export default function BookingModal({ item, onClose }: BookingModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-3xl specular-card p-6 sm:p-8">
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl specular-card p-6 sm:p-8">
         <div className="flex items-center justify-between border-b border-[var(--border-hairline)] pb-4">
           <div>
             <span className="font-mono text-[11px] uppercase tracking-wider text-[var(--accent-primary)]">
@@ -142,21 +184,87 @@ export default function BookingModal({ item, onClose }: BookingModalProps) {
             </div>
           </div>
 
+          <div>
+            <label className="mb-1 block font-medium">Booking Quantity</label>
+
+            <input
+              type="number"
+              min={1}
+              max={item.availableQuantity}
+              step={1}
+              required
+              value={quantity}
+              onChange={(e) => setQuantity(Number(e.target.value))}
+              className="w-full rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3 py-2 outline-none focus:border-[var(--accent-primary)]"
+            />
+
+            <p className="mt-1 text-[10px] text-[var(--text-secondary)]">
+              {item.availableQuantity} unit(s) currently listed as available
+            </p>
+          </div>
+
+          <div>
+            <label className="mb-1 block font-medium">Contact Number</label>
+
+            <input
+              type="tel"
+              required
+              value={contactNumber}
+              onChange={(e) => setContactNumber(e.target.value)}
+              placeholder="Enter your phone number"
+              className="w-full rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3 py-2 outline-none focus:border-[var(--accent-primary)]"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block font-medium">Delivery Address</label>
+
+            <textarea
+              required
+              rows={2}
+              value={deliveryAddress}
+              onChange={(e) => setDeliveryAddress(e.target.value)}
+              placeholder="Enter your complete delivery address"
+              className="w-full resize-none rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3 py-2 outline-none focus:border-[var(--accent-primary)]"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block font-medium">
+              Additional Notes (Optional)
+            </label>
+
+            <textarea
+              rows={2}
+              maxLength={1000}
+              value={additionalNotes}
+              onChange={(e) => setAdditionalNotes(e.target.value)}
+              placeholder="Any additional instructions..."
+              className="w-full resize-none rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3 py-2 outline-none focus:border-[var(--accent-primary)]"
+            />
+          </div>
+
           <div className="rounded-2xl border border-[var(--accent-primary)]/30 bg-[var(--accent-primary)]/10 p-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[11px] text-[var(--text-secondary)]">
                   Estimated rental cost
                 </p>
+
                 <p className="mt-1 font-semibold">
+                  ৳{item.rentalPrice.toLocaleString("en-BD")} /{" "}
+                  {item.rentalType}
+                </p>
+
+                <p className="mt-1 text-[10px] text-[var(--text-secondary)]">
                   {rentalDays > 0
-                    ? `${rentalDays} day(s) × $${item.pricePerDay}`
-                    : `$${item.pricePerDay} per day`}
+                    ? `${rentalDays} days · ${rentalPeriods} rental period(s) · ${quantity} unit(s)`
+                    : "Select rental dates to calculate the cost"}
                 </p>
               </div>
 
-              <div className="font-mono text-xl font-bold text-[var(--accent-cyan)]">
-                ${totalAmount}
+              <div className="whitespace-nowrap font-mono text-xl font-bold text-[var(--accent-cyan)]">
+                ৳{totalAmount.toLocaleString("en-BD")}
               </div>
             </div>
           </div>

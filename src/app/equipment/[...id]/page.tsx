@@ -21,12 +21,20 @@ import {
   X,
 } from "lucide-react";
 
+type RentalType = "daily" | "weekly" | "monthly";
+
 type Equipment = {
   _id: string;
   name: string;
   description: string;
   category: string;
-  pricePerDay: number;
+  brand: string;
+  model: string;
+  rentalType: RentalType;
+  rentalPrice: number;
+  pricePerDay?: number;
+  availableQuantity: number;
+  rentalTerms: string;
   location: string;
   condition: string;
   images?: string[];
@@ -114,43 +122,66 @@ export default function EquipmentDetailsPage() {
     }
   }, [isPending, session, id, router]);
 
-  useEffect(() => {
-    const controller = new AbortController();
+useEffect(() => {
+  const controller = new AbortController();
 
-    async function fetchEquipment() {
-      try {
-        setLoading(true);
-        setError("");
+  async function fetchEquipment() {
+    if (isPending || !session) return;
 
+    try {
+      setLoading(true);
+      setError("");
+
+      let result;
+
+      if (role === "admin") {
+        result = await apiFetch(`/api/admin/equipment/${id}`, {
+          signal: controller.signal,
+        });
+      } else if (role === "owner") {
+        result = await apiFetch(`/api/equipment/my-equipment/${id}`, {
+          signal: controller.signal,
+        });
+      } else {
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/api/equipment/${id}`,
           { signal: controller.signal },
         );
 
-        const result = await response.json();
+        result = await response.json();
 
         if (!response.ok) {
           throw new Error(result.message || "Equipment not found.");
         }
+      }
 
-        setItem(result.equipment || result);
-      } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") return;
+      const equipment = result.equipment || result;
 
-        setError(
-          err instanceof Error ? err.message : "Failed to load equipment.",
-        );
-      } finally {
-        if (!controller.signal.aborted) {
-          setLoading(false);
-        }
+      setItem({
+        ...equipment,
+        rentalPrice: Number(
+          equipment.rentalPrice ?? equipment.pricePerDay ?? 0,
+        ),
+        rentalType: equipment.rentalType ?? "daily",
+        availableQuantity: Number(equipment.availableQuantity ?? 0),
+      });
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") return;
+
+      setError(
+        err instanceof Error ? err.message : "Failed to load equipment.",
+      );
+    } finally {
+      if (!controller.signal.aborted) {
+        setLoading(false);
       }
     }
+  }
 
-    if (id) fetchEquipment();
+  if (id) fetchEquipment();
 
-    return () => controller.abort();
-  }, [id]);
+  return () => controller.abort();
+}, [id, role, session, isPending]);
 
   useEffect(() => {
     loadReviews();
@@ -330,6 +361,12 @@ export default function EquipmentDetailsPage() {
     (review) => review.customerId === currentUserId,
   );
 
+  const hasValidPrice =
+    Number.isFinite(item.rentalPrice) && item.rentalPrice > 0;
+
+  const hasAvailableQuantity =
+    Number.isInteger(item.availableQuantity) && item.availableQuantity > 0;
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
       <div className="mb-6">
@@ -379,22 +416,41 @@ export default function EquipmentDetailsPage() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1 font-mono text-xs font-medium text-emerald-400">
               <Package className="h-3.5 w-3.5" />
-              Approved Listing
+              {item.status.charAt(0).toUpperCase() +
+                item.status.slice(1) +
+                " Listing"}
             </span>
 
             <span className="inline-flex items-center gap-1 text-xs text-[var(--accent-primary)]">
               <CheckCircle2 className="h-3.5 w-3.5" />
-              Verified Listing
+              {item.status === "approved" && (
+                <span className="inline-flex items-center gap-1 text-xs text-[var(--accent-primary)]">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Verified Listing
+                </span>
+              )}
             </span>
           </div>
 
-          <h1 className="text-3xl font-bold tracking-tight">{item.name}</h1>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">{item.name}</h1>
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">
+              {item.brand} {item.model}
+            </p>
+          </div>
 
           <div className="flex items-baseline gap-2 rounded-2xl border border-[var(--accent-primary)]/25 bg-[var(--accent-primary)]/10 px-5 py-4">
             <span className="font-mono text-3xl font-bold text-[var(--accent-cyan)]">
-              ${item.pricePerDay}
+              {hasValidPrice
+                ? `৳${item.rentalPrice.toLocaleString("en-BD")}`
+                : "Price unavailable"}
             </span>
-            <span className="text-sm text-[var(--text-secondary)]">/ day</span>
+
+            {hasValidPrice && (
+              <span className="text-sm text-[var(--text-secondary)]">
+                / {item.rentalType}
+              </span>
+            )}
           </div>
 
           <div>
@@ -426,6 +482,37 @@ export default function EquipmentDetailsPage() {
             </div>
           </div>
 
+          <div className="grid grid-cols-1 gap-4 rounded-2xl specular-card p-4 text-xs sm:grid-cols-2">
+            <div>
+              <div className="text-[11px] text-[var(--text-secondary)]">
+                Available Quantity
+              </div>
+              <div className="mt-1 font-semibold">
+                {item.availableQuantity} units
+              </div>
+            </div>
+
+            <div>
+              <div className="text-[11px] text-[var(--text-secondary)]">
+                Rental Type
+              </div>
+              <div className="mt-1 font-semibold capitalize">
+                {item.rentalType}
+              </div>
+            </div>
+          </div>
+
+          {item.rentalTerms && (
+            <div className="rounded-2xl specular-card p-4">
+              <h2 className="mb-2 text-sm font-semibold">
+                Rental Terms & Conditions
+              </h2>
+              <p className="whitespace-pre-line text-xs leading-relaxed text-[var(--text-secondary)]">
+                {item.rentalTerms}
+              </p>
+            </div>
+          )}
+
           {error && (
             <p className="rounded-lg bg-rose-500/10 p-3 text-xs text-rose-400">
               {error}
@@ -436,11 +523,18 @@ export default function EquipmentDetailsPage() {
             <div className="flex flex-wrap gap-3 pt-2">
               <button
                 type="button"
+                disabled={!hasAvailableQuantity || !hasValidPrice}
                 onClick={() => setModalOpen(true)}
-                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--accent-primary)] to-[#638df2] px-6 py-3.5 text-xs font-semibold text-[#0a0e14] shadow-lg shadow-[var(--accent-primary)]/20 transition hover:brightness-110"
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--accent-primary)] to-[#638df2] px-6 py-3.5 text-xs font-semibold text-[#0a0e14] shadow-lg shadow-[var(--accent-primary)]/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Calendar className="h-4 w-4" />
-                <span>Book Now</span>
+                <span>
+                  {!hasAvailableQuantity
+                    ? "Currently Unavailable"
+                    : !hasValidPrice
+                      ? "Price Unavailable"
+                      : "Book Now"}
+                </span>
               </button>
 
               <button

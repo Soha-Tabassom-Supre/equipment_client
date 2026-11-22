@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -14,27 +14,23 @@ import {
 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 
-
-export default function Navbar() {
+function NavbarContent() {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [theme, setTheme] = useState("dark");
 
   const { data: session } = authClient.useSession();
-
   const currentUser = session?.user;
 
   const navLinks = [
     { href: "/", label: "Home" },
     { href: "/equipment", label: "All Equipment" },
-    { href: "/#how-it-works", label: "How It Works" },
   ];
 
   const toggleTheme = () => {
     const nextTheme = theme === "dark" ? "light" : "dark";
     setTheme(nextTheme);
-
     document.documentElement.classList.toggle("light", nextTheme === "light");
   };
 
@@ -219,5 +215,13 @@ export default function Navbar() {
         </div>
       )}
     </header>
+  );
+}
+
+export default function Navbar() {
+  return (
+    <Suspense fallback={<div className="h-16" />}>
+      <NavbarContent />
+    </Suspense>
   );
 }
