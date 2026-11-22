@@ -6,18 +6,23 @@ import { authClient } from "@/lib/auth-client";
 import { apiFetch } from "@/lib/api";
 import { Check, PlusCircle, Shield, Trash2, Upload, X } from "lucide-react";
 import TelemetryChart from "../components/TelemetryChart";
-
+import { useToast } from "../components/home/ToastProvider";
 type Equipment = {
   _id: string;
   name: string;
   description: string;
   category: string;
-  pricePerDay: number;
   location: string;
   condition: string;
   images?: string[];
   ownerId: string;
   status: string;
+  rentalType: "daily" | "weekly" | "monthly";
+  rentalPrice: number;
+  availableQuantity: number;
+  brand: string;
+  model: string;
+  rentalTerms: string;
 };
 
 type Booking = {
@@ -52,8 +57,6 @@ const CATEGORIES = [
   "Sports",
   "Other",
 ];
-
-
 
 const getId = (item: { _id?: string; id?: string }) =>
   String(item._id || item.id || "");
@@ -97,7 +100,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
-  const [toast, setToast] = useState("");
+  const { showToast } = useToast();
 
   const [profileForm, setProfileForm] = useState({
     name: currentUser?.name || "",
@@ -109,9 +112,14 @@ export default function DashboardPage() {
     description: "",
     category: CATEGORIES[0],
     location: "",
-    pricePerDay: 150,
     condition: "Good",
     image: "",
+    rentalType: "daily" as "daily" | "weekly" | "monthly",
+    rentalPrice: 150,
+    availableQuantity: 1,
+    brand: "",
+    model: "",
+    rentalTerms: "",
   });
 
   useEffect(() => {
@@ -124,11 +132,6 @@ export default function DashboardPage() {
       photo: currentUser?.image || "",
     });
   }, [currentUser?.name, currentUser?.image]);
-
-  const showToast = (message: string) => {
-    setToast(message);
-    window.setTimeout(() => setToast(""), 3000);
-  };
 
   const loadDashboard = useCallback(async () => {
     if (!currentUser) return;
@@ -177,7 +180,6 @@ export default function DashboardPage() {
         setUsers(userData.users || []);
         setBookings(bookingData.bookings || []);
 
-      
         const approved = approvedData.equipment || [];
         const pending = pendingData.equipment || [];
 
@@ -246,6 +248,17 @@ export default function DashboardPage() {
 
   const handleAddEquipment = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (
+      !Number.isFinite(newEq.rentalPrice) ||
+      newEq.rentalPrice <= 0 ||
+      !Number.isInteger(newEq.availableQuantity) ||
+      newEq.availableQuantity < 1
+    ) {
+      showToast("Enter a valid rental price and available quantity.");
+      return;
+    }
+
     setActionLoading(true);
 
     try {
@@ -256,8 +269,13 @@ export default function DashboardPage() {
           description: newEq.description,
           category: newEq.category,
           location: newEq.location,
-          pricePerDay: Number(newEq.pricePerDay),
           condition: newEq.condition,
+          rentalType: newEq.rentalType,
+          rentalPrice: Number(newEq.rentalPrice),
+          availableQuantity: Number(newEq.availableQuantity),
+          brand: newEq.brand,
+          model: newEq.model,
+          rentalTerms: newEq.rentalTerms,
           images: newEq.image ? [newEq.image] : [],
         }),
       });
@@ -269,9 +287,14 @@ export default function DashboardPage() {
         description: "",
         category: CATEGORIES[0],
         location: "",
-        pricePerDay: 150,
         condition: "Good",
         image: "",
+        rentalType: "daily",
+        rentalPrice: 150,
+        availableQuantity: 1,
+        brand: "",
+        model: "",
+        rentalTerms: "",
       });
 
       await loadDashboard();
@@ -468,49 +491,41 @@ export default function DashboardPage() {
     return null;
   }
 
-   
-const monthlySeries = (() => {
-  const now = new Date();
+  const monthlySeries = (() => {
+    const now = new Date();
 
-  const months = Array.from({ length: 6 }, (_, index) => {
-    const date = new Date(now.getFullYear(), now.getMonth() - 5 + index, 1);
+    const months = Array.from({ length: 6 }, (_, index) => {
+      const date = new Date(now.getFullYear(), now.getMonth() - 5 + index, 1);
 
-    return {
-      label: date.toLocaleString("en-US", { month: "short" }),
-      year: date.getFullYear(),
-      month: date.getMonth(),
-      value: 0,
-    };
-  });
+      return {
+        label: date.toLocaleString("en-US", { month: "short" }),
+        year: date.getFullYear(),
+        month: date.getMonth(),
+        value: 0,
+      };
+    });
 
-  bookings.forEach((booking) => {
-    const date = new Date(booking.createdAt);
+    bookings.forEach((booking) => {
+      const date = new Date(booking.createdAt);
 
-    const month = months.find(
-      (item) =>
-        item.year === date.getFullYear() && item.month === date.getMonth(),
-    );
+      const month = months.find(
+        (item) =>
+          item.year === date.getFullYear() && item.month === date.getMonth(),
+      );
 
-    if (month) {
-      month.value += Number(booking.totalAmount || 0);
-    }
-  });
+      if (month) {
+        month.value += Number(booking.totalAmount || 0);
+      }
+    });
 
-  return months.map(({ label, value }) => ({
-    label,
-    value,
-  }));
-})();
+    return months.map(({ label, value }) => ({
+      label,
+      value,
+    }));
+  })();
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      {toast && (
-        <div className="fixed right-5 top-5 z-50 rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-elevated)] px-5 py-3 text-xs shadow-xl">
-          {toast}
-        </div>
-      )}
-
-    
       <div className="mb-8 flex flex-wrap items-center justify-between gap-4 rounded-3xl specular-card p-6">
         <div className="flex items-center gap-4">
           <img
@@ -572,7 +587,6 @@ const monthlySeries = (() => {
 
       {!loading && !error && (
         <>
-          
           {tab === "analytics" && (role === "Owner" || role === "Admin") && (
             <div className="space-y-6">
               {role === "Admin" ? (
@@ -600,7 +614,7 @@ const monthlySeries = (() => {
                     },
                     {
                       label: "Total Revenue",
-                      val: `$${Number(
+                      val: `৳${Number(
                         analytics?.totalRevenue || 0,
                       ).toLocaleString()}`,
                     },
@@ -631,7 +645,7 @@ const monthlySeries = (() => {
                     },
                     {
                       label: "Total Earnings",
-                      val: `$${Number(
+                      val: `৳${Number(
                         analytics?.totalEarnings || 0,
                       ).toLocaleString()}`,
                     },
@@ -717,7 +731,6 @@ const monthlySeries = (() => {
             </div>
           )}
 
-
           {tab === "rentals" && role === "Customer" && (
             <div className="overflow-x-auto rounded-2xl specular-card">
               <table className="w-full text-left text-xs">
@@ -758,7 +771,7 @@ const monthlySeries = (() => {
                           {formatDate(b.createdAt)}
                         </td>
                         <td className="p-4 font-mono font-bold text-[var(--accent-cyan)]">
-                          ${b.totalAmount}
+                          ৳{b.totalAmount}
                         </td>
                         <td className="p-4">{formatStatus(b.status)}</td>
                         <td className="p-4">
@@ -782,7 +795,6 @@ const monthlySeries = (() => {
             </div>
           )}
 
-      
           {tab === "favorites" && role === "Customer" && (
             <div className="overflow-x-auto rounded-2xl specular-card">
               <table className="w-full text-left text-xs">
@@ -811,7 +823,7 @@ const monthlySeries = (() => {
                         <td className="p-4 font-semibold">{item.name}</td>
                         <td className="p-4">{item.category}</td>
                         <td className="p-4 font-mono text-[var(--accent-cyan)]">
-                          ${item.pricePerDay} / day
+                          ৳{item.rentalPrice} / {item.rentalType}
                         </td>
                         <td className="p-4 flex gap-2">
                           <Link
@@ -836,7 +848,6 @@ const monthlySeries = (() => {
               </table>
             </div>
           )}
-
 
           {tab === "add-equipment" && role === "Owner" && (
             <form
@@ -872,10 +883,7 @@ const monthlySeries = (() => {
                   <select
                     value={newEq.category}
                     onChange={(e) =>
-                      setNewEq({
-                        ...newEq,
-                        category: e.target.value,
-                      })
+                      setNewEq({ ...newEq, category: e.target.value })
                     }
                     className="w-full rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3.5 py-2.5"
                   >
@@ -888,15 +896,38 @@ const monthlySeries = (() => {
                 </div>
 
                 <div>
+                  <label className="mb-1 block font-medium">Brand</label>
+                  <input
+                    required
+                    value={newEq.brand}
+                    onChange={(e) =>
+                      setNewEq({ ...newEq, brand: e.target.value })
+                    }
+                    placeholder="ARRI"
+                    className="w-full rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3.5 py-2.5"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block font-medium">Model</label>
+                  <input
+                    required
+                    value={newEq.model}
+                    onChange={(e) =>
+                      setNewEq({ ...newEq, model: e.target.value })
+                    }
+                    placeholder="Alexa Mini LF"
+                    className="w-full rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3.5 py-2.5"
+                  />
+                </div>
+
+                <div>
                   <label className="mb-1 block font-medium">Location</label>
                   <input
                     required
                     value={newEq.location}
                     onChange={(e) =>
-                      setNewEq({
-                        ...newEq,
-                        location: e.target.value,
-                      })
+                      setNewEq({ ...newEq, location: e.target.value })
                     }
                     placeholder="Jashore"
                     className="w-full rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3.5 py-2.5"
@@ -904,18 +935,59 @@ const monthlySeries = (() => {
                 </div>
 
                 <div>
+                  <label className="mb-1 block font-medium">Rental Type</label>
+                  <select
+                    value={newEq.rentalType}
+                    onChange={(e) =>
+                      setNewEq({
+                        ...newEq,
+                        rentalType: e.target.value as
+                          | "daily"
+                          | "weekly"
+                          | "monthly",
+                      })
+                    }
+                    className="w-full rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3.5 py-2.5"
+                  >
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                </div>
+
+                <div>
                   <label className="mb-1 block font-medium">
-                    Rental Price Per Day ($)
+                    Rental Price (৳ / {newEq.rentalType})
                   </label>
                   <input
                     type="number"
                     min={1}
                     required
-                    value={newEq.pricePerDay}
+                    value={newEq.rentalPrice}
                     onChange={(e) =>
                       setNewEq({
                         ...newEq,
-                        pricePerDay: Number(e.target.value),
+                        rentalPrice: Number(e.target.value),
+                      })
+                    }
+                    className="w-full rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3.5 py-2.5"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block font-medium">
+                    Available Quantity
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    required
+                    value={newEq.availableQuantity}
+                    onChange={(e) =>
+                      setNewEq({
+                        ...newEq,
+                        availableQuantity: Number(e.target.value),
                       })
                     }
                     className="w-full rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3.5 py-2.5"
@@ -928,10 +1000,7 @@ const monthlySeries = (() => {
                     required
                     value={newEq.condition}
                     onChange={(e) =>
-                      setNewEq({
-                        ...newEq,
-                        condition: e.target.value,
-                      })
+                      setNewEq({ ...newEq, condition: e.target.value })
                     }
                     placeholder="Good"
                     className="w-full rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3.5 py-2.5"
@@ -980,6 +1049,22 @@ const monthlySeries = (() => {
                 />
               </div>
 
+              <div>
+                <label className="mb-1 block font-medium">
+                  Rental Terms and Conditions
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  value={newEq.rentalTerms}
+                  onChange={(e) =>
+                    setNewEq({ ...newEq, rentalTerms: e.target.value })
+                  }
+                  placeholder="Mention deposit, usage rules, return conditions, and other requirements."
+                  className="w-full rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3.5 py-2"
+                />
+              </div>
+
               <button
                 type="submit"
                 disabled={actionLoading}
@@ -993,7 +1078,6 @@ const monthlySeries = (() => {
             </form>
           )}
 
-       
           {tab === "my-equipment" && role === "Owner" && (
             <div className="overflow-x-auto rounded-2xl specular-card">
               <table className="w-full text-left text-xs">
@@ -1001,7 +1085,7 @@ const monthlySeries = (() => {
                   <tr>
                     <th className="p-4">Equipment Name</th>
                     <th className="p-4">Category</th>
-                    <th className="p-4">Rental Price / Day</th>
+                    <th className="p-4">Rental Rate</th>
                     <th className="p-4">Condition</th>
                     <th className="p-4">Status</th>
                     <th className="p-4">Actions</th>
@@ -1024,7 +1108,7 @@ const monthlySeries = (() => {
                         <td className="p-4 font-semibold">{item.name}</td>
                         <td className="p-4">{item.category}</td>
                         <td className="p-4 font-mono text-[var(--accent-cyan)]">
-                          ${item.pricePerDay}
+                          ৳{item.rentalPrice} / {item.rentalType}
                         </td>
                         <td className="p-4">{item.condition}</td>
                         <td className="p-4">
@@ -1056,7 +1140,6 @@ const monthlySeries = (() => {
             </div>
           )}
 
-         
           {tab === "owner-rentals" && role === "Owner" && (
             <div className="overflow-x-auto rounded-2xl specular-card">
               <table className="w-full text-left text-xs">
@@ -1092,7 +1175,7 @@ const monthlySeries = (() => {
                         </td>
                         <td className="p-4 font-mono">{b.rentalDays}</td>
                         <td className="p-4 font-mono text-[var(--accent-cyan)]">
-                          ${b.totalAmount}
+                          ৳{b.totalAmount}
                         </td>
                         <td className="p-4">{formatStatus(b.status)}</td>
                         <td className="p-4">
@@ -1128,7 +1211,6 @@ const monthlySeries = (() => {
             </div>
           )}
 
-        
           {tab === "all-users" && role === "Admin" && (
             <div className="overflow-x-auto rounded-2xl specular-card">
               <table className="w-full text-left text-xs">
@@ -1177,7 +1259,6 @@ const monthlySeries = (() => {
             </div>
           )}
 
-
           {tab === "all-equipment" && role === "Admin" && (
             <div className="overflow-x-auto rounded-2xl specular-card">
               <table className="w-full text-left text-xs">
@@ -1185,7 +1266,7 @@ const monthlySeries = (() => {
                   <tr>
                     <th className="p-4">Equipment</th>
                     <th className="p-4">Owner ID</th>
-                    <th className="p-4">Price / Day</th>
+                    <th className="p-4">Rental Rate</th>
                     <th className="p-4">Status</th>
                     <th className="p-4">Actions</th>
                   </tr>
@@ -1197,7 +1278,7 @@ const monthlySeries = (() => {
                       <td className="p-4 font-semibold">{item.name}</td>
                       <td className="p-4 font-mono">{item.ownerId}</td>
                       <td className="p-4 font-mono text-[var(--accent-cyan)]">
-                        ${item.pricePerDay}
+                        ৳{item.rentalPrice} / {item.rentalType}
                       </td>
                       <td className="p-4">
                         <span
@@ -1249,7 +1330,6 @@ const monthlySeries = (() => {
             </div>
           )}
 
-    
           {tab === "all-rentals" && role === "Admin" && (
             <div className="overflow-x-auto rounded-2xl specular-card">
               <table className="w-full text-left text-xs">
@@ -1286,7 +1366,7 @@ const monthlySeries = (() => {
                       </td>
 
                       <td className="p-4 font-mono text-[var(--accent-cyan)]">
-                        ${b.totalAmount}
+                        ৳{b.totalAmount}
                       </td>
 
                       <td className="p-4">{formatStatus(b.status)}</td>
@@ -1310,7 +1390,6 @@ const monthlySeries = (() => {
             </div>
           )}
 
-        
           {tab === "profile" && (
             <form
               onSubmit={updateProfile}

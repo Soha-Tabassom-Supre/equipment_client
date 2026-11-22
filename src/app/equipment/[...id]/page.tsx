@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
@@ -15,6 +15,10 @@ import {
   MapPin,
   Package,
   ShieldCheck,
+  Star,
+  Trash2,
+  Pencil,
+  X,
 } from "lucide-react";
 
 type Equipment = {
@@ -30,6 +34,22 @@ type Equipment = {
   createdAt: string;
 };
 
+type Review = {
+  _id: string;
+  customerId: string;
+  customerName: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+  updatedAt?: string;
+};
+
+type ReviewData = {
+  totalReviews: number;
+  averageRating: number;
+  reviews: Review[];
+};
+
 export default function EquipmentDetailsPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
@@ -37,6 +57,7 @@ export default function EquipmentDetailsPage() {
 
   const { data: session, isPending } = authClient.useSession();
   const role = session?.user?.role;
+  const currentUserId = session?.user?.id;
 
   const [item, setItem] = useState<Equipment | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
@@ -45,14 +66,54 @@ export default function EquipmentDetailsPage() {
   const [error, setError] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
 
-  // Protect the page
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [averageRating, setAverageRating] = useState(0);
+  const [totalReviews, setTotalReviews] = useState(0);
+  const [reviewLoading, setReviewLoading] = useState(true);
+  const [reviewError, setReviewError] = useState("");
+  const [reviewMessage, setReviewMessage] = useState("");
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState("");
+
+  const [editingReviewId, setEditingReviewId] = useState<string | null>(null);
+  const [editRating, setEditRating] = useState(5);
+  const [editComment, setEditComment] = useState("");
+
+  const loadReviews = useCallback(async () => {
+    try {
+      setReviewLoading(true);
+      setReviewError("");
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/reviews/${id}`,
+      );
+
+      const result: ReviewData = await response.json();
+
+      if (!response.ok) {
+        throw new Error("Failed to load reviews.");
+      }
+
+      setReviews(result.reviews || []);
+      setAverageRating(result.averageRating || 0);
+      setTotalReviews(result.totalReviews || 0);
+    } catch (err) {
+      setReviewError(
+        err instanceof Error ? err.message : "Failed to load reviews.",
+      );
+    } finally {
+      setReviewLoading(false);
+    }
+  }, [id]);
+
   useEffect(() => {
     if (!isPending && !session) {
       router.replace(`/login?redirect=/equipment/${id}`);
     }
   }, [isPending, session, id, router]);
 
-  // Fetch equipment details
   useEffect(() => {
     const controller = new AbortController();
 
@@ -91,7 +152,10 @@ export default function EquipmentDetailsPage() {
     return () => controller.abort();
   }, [id]);
 
-  // Check whether this equipment is already in customer favorites
+  useEffect(() => {
+    loadReviews();
+  }, [loadReviews]);
+
   useEffect(() => {
     if (isPending || !session || role !== "customer") return;
 
@@ -135,6 +199,99 @@ export default function EquipmentDetailsPage() {
     }
   };
 
+  const handleSubmitReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (reviewSubmitting) return;
+
+    try {
+      setReviewSubmitting(true);
+      setReviewError("");
+      setReviewMessage("");
+
+      await apiFetch(`/api/reviews/${id}`, {
+        method: "POST",
+        body: JSON.stringify({
+          rating,
+          comment,
+        }),
+      });
+
+      setComment("");
+      setRating(5);
+      setReviewMessage("Your review was submitted successfully.");
+
+      await loadReviews();
+    } catch (err) {
+      setReviewError(
+        err instanceof Error ? err.message : "Could not submit review.",
+      );
+    } finally {
+      setReviewSubmitting(false);
+    }
+  };
+
+  const startEditingReview = (review: Review) => {
+    setEditingReviewId(review._id);
+    setEditRating(review.rating);
+    setEditComment(review.comment);
+    setReviewError("");
+    setReviewMessage("");
+  };
+
+  const handleUpdateReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!editingReviewId) return;
+
+    try {
+      setReviewSubmitting(true);
+      setReviewError("");
+      setReviewMessage("");
+
+      await apiFetch(`/api/reviews/edit/${editingReviewId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          rating: editRating,
+          comment: editComment,
+        }),
+      });
+
+      setEditingReviewId(null);
+      setReviewMessage("Your review was updated successfully.");
+
+      await loadReviews();
+    } catch (err) {
+      setReviewError(
+        err instanceof Error ? err.message : "Could not update review.",
+      );
+    } finally {
+      setReviewSubmitting(false);
+    }
+  };
+
+  const handleDeleteReview = async (reviewId: string) => {
+    if (!window.confirm("Are you sure you want to delete your review?")) {
+      return;
+    }
+
+    try {
+      setReviewError("");
+      setReviewMessage("");
+
+      await apiFetch(`/api/reviews/edit/${reviewId}`, {
+        method: "DELETE",
+      });
+
+      setReviewMessage("Your review was deleted successfully.");
+      await loadReviews();
+    } catch (err) {
+      setReviewError(
+        err instanceof Error ? err.message : "Could not delete review.",
+      );
+    }
+  };
+
   if (isPending || !session) {
     return (
       <div className="flex min-h-[65vh] items-center justify-center font-mono text-xs text-[var(--text-secondary)]">
@@ -169,10 +326,12 @@ export default function EquipmentDetailsPage() {
   if (!item) return null;
 
   const isCustomer = role === "customer";
+  const myReview = reviews.find(
+    (review) => review.customerId === currentUserId,
+  );
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
-      {/* Breadcrumb */}
       <div className="mb-6">
         <Link
           href="/equipment"
@@ -184,7 +343,6 @@ export default function EquipmentDetailsPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-10 lg:grid-cols-12">
-        {/* Equipment Image and Condition */}
         <div className="space-y-4 lg:col-span-6">
           <div className="relative overflow-hidden rounded-3xl specular-card">
             {item.images && item.images.length > 0 ? (
@@ -217,7 +375,6 @@ export default function EquipmentDetailsPage() {
           </div>
         </div>
 
-        {/* Equipment Details */}
         <div className="space-y-6 lg:col-span-6">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1 font-mono text-xs font-medium text-emerald-400">
@@ -233,7 +390,6 @@ export default function EquipmentDetailsPage() {
 
           <h1 className="text-3xl font-bold tracking-tight">{item.name}</h1>
 
-          {/* Pricing */}
           <div className="flex items-baseline gap-2 rounded-2xl border border-[var(--accent-primary)]/25 bg-[var(--accent-primary)]/10 px-5 py-4">
             <span className="font-mono text-3xl font-bold text-[var(--accent-cyan)]">
               ${item.pricePerDay}
@@ -241,7 +397,6 @@ export default function EquipmentDetailsPage() {
             <span className="text-sm text-[var(--text-secondary)]">/ day</span>
           </div>
 
-          {/* Description */}
           <div>
             <h2 className="mb-2 text-sm font-semibold">Description</h2>
             <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
@@ -249,7 +404,6 @@ export default function EquipmentDetailsPage() {
             </p>
           </div>
 
-          {/* Location and Condition */}
           <div className="grid grid-cols-1 gap-4 rounded-2xl specular-card p-4 text-xs sm:grid-cols-2">
             <div className="flex items-start gap-2.5">
               <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[var(--accent-primary)]" />
@@ -278,7 +432,6 @@ export default function EquipmentDetailsPage() {
             </p>
           )}
 
-          {/* Actions */}
           {isCustomer ? (
             <div className="flex flex-wrap gap-3 pt-2">
               <button
@@ -314,7 +467,256 @@ export default function EquipmentDetailsPage() {
         </div>
       </div>
 
-      {/* Booking Modal */}
+      <section className="mt-16 space-y-8">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-bold">Customer Reviews</h2>
+            <p className="mt-1 text-xs text-[var(--text-secondary)]">
+              Feedback from customers who rented this equipment.
+            </p>
+          </div>
+
+          <div className="rounded-2xl specular-card px-5 py-3">
+            <div className="flex items-center gap-2">
+              <Star className="h-5 w-5 fill-amber-400 text-amber-400" />
+              <span className="font-mono text-2xl font-bold">
+                {averageRating.toFixed(1)}
+              </span>
+            </div>
+            <p className="mt-1 text-[11px] text-[var(--text-secondary)]">
+              {totalReviews} {totalReviews === 1 ? "Review" : "Reviews"}
+            </p>
+          </div>
+        </div>
+
+        {isCustomer && !myReview && (
+          <form
+            onSubmit={handleSubmitReview}
+            className="space-y-4 rounded-3xl specular-card p-6"
+          >
+            <h3 className="text-lg font-bold">Write a Review</h3>
+            <p className="text-xs text-[var(--text-secondary)]">
+              Reviews are available after completing a confirmed and paid
+              rental.
+            </p>
+
+            <div>
+              <label className="mb-2 block text-xs font-medium">
+                Your Rating
+              </label>
+              <div className="flex gap-2">
+                {[1, 2, 3, 4, 5].map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setRating(value)}
+                    className="rounded-lg p-1 transition"
+                    aria-label={`Rate ${value} out of 5`}
+                  >
+                    <Star
+                      className={`h-6 w-6 ${
+                        value <= rating
+                          ? "fill-amber-400 text-amber-400"
+                          : "text-[var(--text-secondary)]"
+                      }`}
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-xs font-medium">
+                Your Review
+              </label>
+              <textarea
+                required
+                minLength={1}
+                rows={4}
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="Share your experience with this equipment..."
+                className="w-full rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-4 py-3 text-sm outline-none focus:border-[var(--accent-primary)]"
+              />
+            </div>
+
+            {reviewError && (
+              <p className="rounded-lg bg-rose-500/10 p-3 text-xs text-rose-400">
+                {reviewError}
+              </p>
+            )}
+
+            {reviewMessage && (
+              <p className="rounded-lg bg-emerald-500/10 p-3 text-xs text-emerald-400">
+                {reviewMessage}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={reviewSubmitting || !comment.trim()}
+              className="rounded-xl bg-gradient-to-r from-[var(--accent-primary)] to-[#638df2] px-6 py-3 text-xs font-semibold text-[#0a0e14] disabled:opacity-50"
+            >
+              {reviewSubmitting ? "Submitting..." : "Submit Review"}
+            </button>
+          </form>
+        )}
+
+        {reviewError && !isCustomer && (
+          <p className="rounded-lg bg-rose-500/10 p-3 text-xs text-rose-400">
+            {reviewError}
+          </p>
+        )}
+
+        {reviewLoading ? (
+          <div className="rounded-2xl specular-card p-8 text-center text-xs text-[var(--text-secondary)]">
+            Loading reviews...
+          </div>
+        ) : reviews.length === 0 ? (
+          <div className="rounded-2xl specular-card p-8 text-center text-xs text-[var(--text-secondary)]">
+            No reviews yet. Be the first to share your experience after a
+            completed rental.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {reviews.map((review) => {
+              const isMyReview = review.customerId === currentUserId;
+
+              return (
+                <article
+                  key={review._id}
+                  className="rounded-2xl specular-card p-5 sm:p-6"
+                >
+                  {editingReviewId === review._id ? (
+                    <form onSubmit={handleUpdateReview} className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-semibold">Edit Your Review</h3>
+                        <button
+                          type="button"
+                          onClick={() => setEditingReviewId(null)}
+                          className="text-[var(--text-secondary)] hover:text-rose-400"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+
+                      <div className="flex gap-2">
+                        {[1, 2, 3, 4, 5].map((value) => (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => setEditRating(value)}
+                            aria-label={`Rate ${value} out of 5`}
+                          >
+                            <Star
+                              className={`h-5 w-5 ${
+                                value <= editRating
+                                  ? "fill-amber-400 text-amber-400"
+                                  : "text-[var(--text-secondary)]"
+                              }`}
+                            />
+                          </button>
+                        ))}
+                      </div>
+
+                      <textarea
+                        required
+                        rows={3}
+                        value={editComment}
+                        onChange={(e) => setEditComment(e.target.value)}
+                        className="w-full rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-4 py-3 text-sm outline-none focus:border-[var(--accent-primary)]"
+                      />
+
+                      <div className="flex gap-2">
+                        <button
+                          type="submit"
+                          disabled={reviewSubmitting || !editComment.trim()}
+                          className="rounded-lg bg-[var(--accent-primary)] px-4 py-2 text-xs font-semibold text-[#0a0e14] disabled:opacity-50"
+                        >
+                          {reviewSubmitting ? "Saving..." : "Save Changes"}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setEditingReviewId(null)}
+                          className="rounded-lg border border-[var(--border-hairline)] px-4 py-2 text-xs"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <h3 className="text-sm font-semibold">
+                            {review.customerName}
+                          </h3>
+                          <p className="mt-1 text-[11px] text-[var(--text-secondary)]">
+                            {new Date(review.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          {Array.from({ length: 5 }, (_, index) => (
+                            <Star
+                              key={index}
+                              className={`h-4 w-4 ${
+                                index < review.rating
+                                  ? "fill-amber-400 text-amber-400"
+                                  : "text-[var(--text-secondary)]"
+                              }`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+
+                      <p className="mt-4 text-sm leading-relaxed text-[var(--text-secondary)]">
+                        {review.comment}
+                      </p>
+
+                      {isMyReview && (
+                        <div className="mt-4 flex gap-2 border-t border-[var(--border-hairline)] pt-4">
+                          <button
+                            type="button"
+                            onClick={() => startEditingReview(review)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-hairline)] px-3 py-2 text-xs hover:border-[var(--accent-primary)]"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            Edit
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteReview(review._id)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/30 px-3 py-2 text-xs text-rose-400 hover:bg-rose-500/10"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+        )}
+
+        {reviewMessage && myReview && (
+          <p className="rounded-lg bg-emerald-500/10 p-3 text-xs text-emerald-400">
+            {reviewMessage}
+          </p>
+        )}
+
+        {reviewError && myReview && (
+          <p className="rounded-lg bg-rose-500/10 p-3 text-xs text-rose-400">
+            {reviewError}
+          </p>
+        )}
+      </section>
+
       {modalOpen && (
         <BookingModal item={item} onClose={() => setModalOpen(false)} />
       )}

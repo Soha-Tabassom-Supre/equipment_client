@@ -16,19 +16,37 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL;
 const ITEMS_PER_PAGE = 6;
 
 type SortOption = "recent" | "price-asc" | "price-desc";
+type RentalType = "daily" | "weekly" | "monthly";
 
 type Equipment = {
   _id: string;
   name: string;
   description: string;
   category: string;
-  pricePerDay: number;
+  brand: string;
+  model: string;
+  rentalType: RentalType;
+  rentalPrice: number;
+  availableQuantity: number;
+  rentalTerms: string;
   location: string;
   condition: string;
   images?: string[];
   status: string;
   createdAt: string;
 };
+
+function getDailyEquivalentPrice(item: Equipment) {
+  if (item.rentalType === "weekly") {
+    return item.rentalPrice / 7;
+  }
+
+  if (item.rentalType === "monthly") {
+    return item.rentalPrice / 30;
+  }
+
+  return item.rentalPrice;
+}
 
 function AllEquipmentContent() {
   const searchParams = useSearchParams();
@@ -44,7 +62,6 @@ function AllEquipmentContent() {
   const [sortBy, setSortBy] = useState<SortOption>("recent");
   const [currentPage, setCurrentPage] = useState(1);
 
- 
   useEffect(() => {
     const controller = new AbortController();
 
@@ -89,14 +106,12 @@ function AllEquipmentContent() {
     return () => controller.abort();
   }, []);
 
-  
   const categories = useMemo(() => {
     return Array.from(
       new Set(equipment.map((item) => item.category).filter(Boolean)),
     ).sort();
   }, [equipment]);
 
-  
   const filteredEquipment = useMemo(() => {
     return equipment
       .filter((item) => {
@@ -106,22 +121,24 @@ function AllEquipmentContent() {
           !q ||
           item.name.toLowerCase().includes(q) ||
           item.location.toLowerCase().includes(q) ||
-          item.category.toLowerCase().includes(q);
+          item.category.toLowerCase().includes(q) ||
+          item.brand?.toLowerCase().includes(q) ||
+          item.model?.toLowerCase().includes(q);
 
         const matchesCategory =
           category === "All" || item.category === category;
 
-        const matchesPrice = item.pricePerDay <= maxPrice;
+        const matchesPrice = getDailyEquivalentPrice(item) <= maxPrice;
 
         return matchesSearch && matchesCategory && matchesPrice;
       })
       .sort((a, b) => {
         if (sortBy === "price-asc") {
-          return a.pricePerDay - b.pricePerDay;
+          return getDailyEquivalentPrice(a) - getDailyEquivalentPrice(b);
         }
 
         if (sortBy === "price-desc") {
-          return b.pricePerDay - a.pricePerDay;
+          return getDailyEquivalentPrice(b) - getDailyEquivalentPrice(a);
         }
 
         return (
@@ -150,7 +167,6 @@ function AllEquipmentContent() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <span className="font-mono text-xs uppercase tracking-widest text-[var(--accent-primary)]">
@@ -168,10 +184,8 @@ function AllEquipmentContent() {
         </div>
       </div>
 
-    
       <div className="mb-8 space-y-4 rounded-2xl specular-card p-5">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
-        
           <div className="relative md:col-span-5">
             <Search className="absolute left-3.5 top-3 h-4 w-4 text-[var(--text-secondary)]" />
 
@@ -182,12 +196,11 @@ function AllEquipmentContent() {
                 setSearchQuery(e.target.value);
                 setCurrentPage(1);
               }}
-              placeholder="Search by equipment name or location..."
+              placeholder="Search name, brand, model or location..."
               className="w-full rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-canvas)] py-2.5 pl-10 pr-4 text-xs outline-none transition focus:border-[var(--accent-primary)]"
             />
           </div>
 
-         
           <div className="md:col-span-3">
             <select
               value={category}
@@ -207,7 +220,6 @@ function AllEquipmentContent() {
             </select>
           </div>
 
-      
           <div className="md:col-span-4">
             <select
               value={sortBy}
@@ -224,19 +236,18 @@ function AllEquipmentContent() {
           </div>
         </div>
 
-      
         <div className="flex flex-wrap items-center justify-between gap-4 border-t border-[var(--border-hairline)] pt-4 text-xs">
           <div className="flex items-center gap-2 text-[var(--text-secondary)]">
             <SlidersHorizontal className="h-3.5 w-3.5 text-[var(--accent-primary)]" />
-            <span>Filter by daily price</span>
+            <span>Filter by daily-equivalent price</span>
           </div>
 
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2.5">
               <span className="text-[var(--text-secondary)]">
-                Max Price:{" "}
+                Max:{" "}
                 <strong className="font-mono text-[var(--accent-cyan)]">
-                  ${maxPrice}
+                  ৳{maxPrice.toLocaleString("en-BD")}
                 </strong>
               </span>
 
@@ -266,7 +277,6 @@ function AllEquipmentContent() {
         </div>
       </div>
 
-      
       {loading && (
         <div className="rounded-2xl specular-card p-14 text-center">
           <p className="font-mono text-xs text-[var(--text-secondary)]">
@@ -275,13 +285,11 @@ function AllEquipmentContent() {
         </div>
       )}
 
-    
       {!loading && error && (
         <div className="rounded-2xl specular-card p-14 text-center">
           <p className="text-sm text-red-400">{error}</p>
         </div>
       )}
-
 
       {!loading && !error && paginatedItems.length === 0 && (
         <div className="rounded-2xl specular-card p-14 text-center">
@@ -301,7 +309,6 @@ function AllEquipmentContent() {
         </div>
       )}
 
-    
       {!loading && !error && paginatedItems.length > 0 && (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {paginatedItems.map((item) => (
@@ -310,7 +317,6 @@ function AllEquipmentContent() {
               href={`/equipment/${item._id}`}
               className="group overflow-hidden rounded-2xl specular-card transition hover:-translate-y-1"
             >
-           
               <div className="relative h-52 overflow-hidden bg-[var(--bg-elevated)]">
                 {item.images && item.images.length > 0 ? (
                   <img
@@ -337,6 +343,10 @@ function AllEquipmentContent() {
                     {item.name}
                   </h2>
 
+                  <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                    {item.brand} {item.model}
+                  </p>
+
                   <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--text-secondary)]">
                     {item.description}
                   </p>
@@ -350,19 +360,21 @@ function AllEquipmentContent() {
 
                   <div className="text-right">
                     <p className="font-mono text-lg font-bold text-[var(--accent-cyan)]">
-                      ${item.pricePerDay}
+                      ৳{item.rentalPrice.toLocaleString("en-BD")}
                     </p>
                     <p className="text-[10px] text-[var(--text-secondary)]">
-                      per day
+                      per {item.rentalType}
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between text-[10px] text-[var(--text-secondary)]">
                   <span>Condition: {item.condition}</span>
-                  <span className="text-[var(--accent-primary)]">
-                    View Details →
-                  </span>
+                  <span>Available: {item.availableQuantity}</span>
+                </div>
+
+                <div className="text-right text-[10px] text-[var(--accent-primary)]">
+                  View Details →
                 </div>
               </div>
             </Link>
