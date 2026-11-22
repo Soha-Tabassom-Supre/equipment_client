@@ -37,6 +37,7 @@ type Booking = {
   totalAmount: number;
   status: string;
   createdAt: string;
+  paymentStatus?: "paid" | "unpaid";
 };
 
 type User = {
@@ -101,7 +102,7 @@ export default function DashboardPage() {
   const [error, setError] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const { showToast } = useToast();
-
+   const [payingId, setPayingId] = useState<string | null>(null);
   const [profileForm, setProfileForm] = useState({
     name: currentUser?.name || "",
     photo: currentUser?.image || "",
@@ -347,6 +348,29 @@ export default function DashboardPage() {
       );
     }
   };
+    const handlePayment = async (bookingId: string) => {
+      try {
+        setPayingId(bookingId);
+
+        const result = await apiFetch("/api/payments/create-checkout-session", {
+          method: "POST",
+          body: JSON.stringify({ bookingId }),
+        });
+
+        if (!result.checkoutUrl) {
+          throw new Error("Stripe checkout URL was not returned.");
+        }
+
+        window.location.href = result.checkoutUrl;
+      } catch (err) {
+        showToast(
+          err instanceof Error ? err.message : "Unable to start payment.",
+          "error",
+        );
+
+        setPayingId(null);
+      }
+    };
 
   const updateBookingStatus = async (
     bookingId: string,
@@ -742,6 +766,7 @@ export default function DashboardPage() {
                     <th className="p-4">Booking Date</th>
                     <th className="p-4">Total Amount</th>
                     <th className="p-4">Booking Status</th>
+                    <th className="p-4">Payment Status</th>
                     <th className="p-4">Actions</th>
                   </tr>
                 </thead>
@@ -750,7 +775,7 @@ export default function DashboardPage() {
                   {myCustomerRentals.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={7}
+                        colSpan={8}
                         className="p-8 text-center text-[var(--text-secondary)]"
                       >
                         No rentals found yet. Browse All Equipment to book your
@@ -758,37 +783,82 @@ export default function DashboardPage() {
                       </td>
                     </tr>
                   ) : (
-                    myCustomerRentals.map((b) => (
-                      <tr key={getId(b)}>
-                        <td className="p-4 font-semibold">{b.equipmentName}</td>
-                        <td className="p-4 font-mono">
-                          {formatDate(b.startDate)}
-                        </td>
-                        <td className="p-4 font-mono">
-                          {formatDate(b.endDate)}
-                        </td>
-                        <td className="p-4 font-mono">
-                          {formatDate(b.createdAt)}
-                        </td>
-                        <td className="p-4 font-mono font-bold text-[var(--accent-cyan)]">
-                          ৳{b.totalAmount}
-                        </td>
-                        <td className="p-4">{formatStatus(b.status)}</td>
-                        <td className="p-4">
-                          {b.status === "pending" && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                updateBookingStatus(getId(b), "cancel")
-                              }
-                              className="rounded-lg border border-rose-500/40 px-3 py-1.5 text-rose-400"
+                    myCustomerRentals.map((b) => {
+                      const bookingId = getId(b);
+                      const isPaid = b.paymentStatus === "paid";
+                      const canPay = b.status === "confirmed" && !isPaid;
+
+                      return (
+                        <tr key={bookingId}>
+                          <td className="p-4 font-semibold">
+                            {b.equipmentName}
+                          </td>
+
+                          <td className="p-4 font-mono">
+                            {formatDate(b.startDate)}
+                          </td>
+
+                          <td className="p-4 font-mono">
+                            {formatDate(b.endDate)}
+                          </td>
+
+                          <td className="p-4 font-mono">
+                            {formatDate(b.createdAt)}
+                          </td>
+
+                          <td className="p-4 font-mono font-bold text-[var(--accent-cyan)]">
+                            ৳{Number(b.totalAmount).toLocaleString()}
+                          </td>
+
+                          <td className="p-4">{formatStatus(b.status)}</td>
+
+                          <td className="p-4">
+                            <span
+                              className={`rounded-full px-2.5 py-1 text-[11px] ${
+                                isPaid
+                                  ? "bg-emerald-500/15 text-emerald-400"
+                                  : "bg-amber-500/15 text-amber-400"
+                              }`}
                             >
-                              Cancel
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))
+                              {isPaid ? "Paid" : "Unpaid"}
+                            </span>
+                          </td>
+
+                          <td className="p-4">
+                            {canPay ? (
+                              <button
+                                type="button"
+                                disabled={payingId === bookingId}
+                                onClick={() => handlePayment(bookingId)}
+                                className="whitespace-nowrap rounded-lg bg-gradient-to-r from-[var(--accent-primary)] to-[#638df2] px-3 py-1.5 font-semibold text-[#0a0e14] disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                {payingId === bookingId
+                                  ? "Redirecting..."
+                                  : "Pay Now"}
+                              </button>
+                            ) : isPaid ? (
+                              <span className="font-medium text-emerald-400">
+                                Payment Complete
+                              </span>
+                            ) : b.status === "pending" ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateBookingStatus(bookingId, "cancel")
+                                }
+                                className="rounded-lg border border-rose-500/40 px-3 py-1.5 text-rose-400"
+                              >
+                                Cancel
+                              </button>
+                            ) : (
+                              <span className="text-[var(--text-secondary)]">
+                                —
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
