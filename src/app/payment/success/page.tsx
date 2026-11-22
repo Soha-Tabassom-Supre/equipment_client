@@ -26,7 +26,7 @@ function PaymentSuccessContent() {
         </div>
 
         <Link
-          href="/dashboard"
+          href="/bookings"
           className="mt-6 block w-full rounded-xl bg-gradient-to-r from-[var(--accent-primary)] to-[#638df2] py-3 text-xs font-semibold text-[#0a0e14]"
         >
           View My Rentals in Dashboard
