@@ -4,11 +4,12 @@ import React, { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, Eye, EyeOff, Lock, Mail, Sparkles } from "lucide-react";
-
+import { useToast } from "@/app/components/home/ToastProvider";
 import { authClient } from "@/lib/auth-client";
 
 function LoginForm() {
   const router = useRouter();
+  const { showToast } = useToast();
   const searchParams = useSearchParams();
 
   const [email, setEmail] = useState("");
@@ -37,14 +38,19 @@ function LoginForm() {
       });
 
       if (error) {
-        setError(error.message || "Invalid email or password.");
-        return;
+         const message = error.message || "Invalid email or password.";
+         setError(message);
+         showToast(message, "error");
+         return;
       }
 
+      showToast("Login successful! Welcome back.", "success");
       router.push(redirectPath);
       router.refresh();
     } catch {
-      setError("Something went wrong. Please try again.");
+       const message = "Something went wrong. Please try again.";
+       setError(message);
+       showToast(message, "error");
     } finally {
       setLoading(false);
     }
@@ -56,7 +62,7 @@ function LoginForm() {
     try {
       await authClient.signIn.social({
         provider: "google",
-        callbackURL: redirectPath,
+        callbackURL: `${redirectPath}${redirectPath.includes("?") ? "&" : "?"}login=success`,
       });
     } catch {
       setError("Unable to sign in with Google. Please try again.");
