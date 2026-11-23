@@ -1,5 +1,5 @@
 "use client";
-
+import { useToast } from "../home/ToastProvider";
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -15,6 +15,7 @@ import {
 import { authClient } from "@/lib/auth-client";
 
 function NavbarContent() {
+  const { showToast } = useToast();
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -33,13 +34,25 @@ function NavbarContent() {
     setTheme(nextTheme);
     document.documentElement.classList.toggle("light", nextTheme === "light");
   };
+  
+   const handleLogout = async () => {
+     try {
+       const { error } = await authClient.signOut();
 
-  const handleLogout = async () => {
-    await authClient.signOut();
-    setMobileOpen(false);
-    router.push("/");
-    router.refresh();
-  };
+       if (error) {
+         showToast("Logout failed. Please try again.", "error");
+         return;
+       }
+
+       setMobileOpen(false);
+       showToast("You have successfully logged out.", "success");
+
+       router.push("/");
+       router.refresh();
+     } catch {
+       showToast("Something went wrong during logout.", "error");
+     }
+   };
 
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--border-hairline)] bg-[var(--bg-canvas)]/85 backdrop-blur-xl">
