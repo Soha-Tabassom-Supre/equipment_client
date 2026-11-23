@@ -65,6 +65,17 @@ function AllEquipmentContent() {
   const [sortBy, setSortBy] = useState<SortOption>("recent");
   const [currentPage, setCurrentPage] = useState(1);
 
+  
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const selectedCategory = params.get("category");
+
+    if (selectedCategory) {
+      setCategory(selectedCategory);
+      setCurrentPage(1);
+    }
+  }, []);
+
   useEffect(() => {
     const controller = new AbortController();
 
@@ -168,6 +179,9 @@ function AllEquipmentContent() {
     setPriceInput("");
     setSortBy("recent");
     setCurrentPage(1);
+
+   
+    window.history.replaceState(null, "", "/equipment");
   };
 
   const handlePriceChange = (value: string) => {

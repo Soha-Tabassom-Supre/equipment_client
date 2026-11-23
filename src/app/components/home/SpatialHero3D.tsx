@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 import Link from "next/link";
 import {
@@ -62,17 +62,45 @@ const DECK_ITEMS = [
   },
 ];
 
-const CATEGORIES = [
-  "Photography",
-  "Construction",
-  "Electronics",
-  "Agriculture",
-];
+type EquipmentCategory = {
+  name: string;
+  count: number;
+};
 
 export default function SpatialHero3D() {
   const [activeIndex, setActiveIndex] = useState(0);
+  const [categories, setCategories] = useState<EquipmentCategory[]>([]);
 
   const stageRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function fetchCategories() {
+      try {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/equipment/categories`,
+          { signal: controller.signal },
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to load equipment categories.");
+        }
+
+        const data = await response.json();
+
+        setCategories(Array.isArray(data.categories) ? data.categories : []);
+      } catch (error) {
+        if (error instanceof Error && error.name !== "AbortError") {
+          console.error("Category loading error:", error);
+        }
+      }
+    }
+
+    fetchCategories();
+
+    return () => controller.abort();
+  }, []);
 
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
@@ -122,14 +150,12 @@ export default function SpatialHero3D() {
 
   return (
     <section className="relative overflow-hidden border-b border-[var(--border-hairline)] bg-architectural-grid">
-    
       <div className="pointer-events-none absolute -top-32 left-1/4 h-96 w-96 rounded-full bg-[#7aa2f7]/15 blur-[130px]" />
 
       <div className="pointer-events-none absolute bottom-0 right-1/5 h-96 w-96 rounded-full bg-[#9d7cd8]/15 blur-[130px]" />
 
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
         <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-12">
-
           <motion.div
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
@@ -138,7 +164,6 @@ export default function SpatialHero3D() {
           >
             <div className="inline-flex items-center gap-2 rounded-full border border-[#7aa2f7]/30 bg-[#7aa2f7]/10 px-3.5 py-1.5 text-xs font-medium text-[#7aa2f7]">
               <Sparkles className="h-3.5 w-3.5" />
-
               <span>Equipment Rental Marketplace</span>
             </div>
 
@@ -155,7 +180,6 @@ export default function SpatialHero3D() {
               project without the cost of ownership.
             </p>
 
-           
             <div className="flex flex-wrap items-center gap-4 pt-1">
               <Link
                 href="/equipment"
@@ -173,29 +197,29 @@ export default function SpatialHero3D() {
               </Link>
             </div>
 
-         
             <div className="pt-2">
               <p className="mb-2.5 text-xs font-medium uppercase tracking-widest text-[var(--text-secondary)]">
                 Explore Categories
               </p>
 
               <div className="flex flex-wrap gap-2">
-                {CATEGORIES.map((category) => (
+                {categories.map((category) => (
                   <Link
-                    key={category}
-                    href={`/equipment?category=${encodeURIComponent(category)}`}
+                    key={category.name}
+                    href={`/equipment?category=${encodeURIComponent(category.name)}`}
                     className="rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface)]/70 px-3 py-1.5 text-xs text-[var(--text-secondary)] transition hover:border-[#7aa2f7] hover:text-[var(--text-primary)]"
                   >
-                    {category}
+                    {category.name}
                   </Link>
                 ))}
               </div>
             </div>
 
-           
             <div className="grid grid-cols-3 gap-4 border-t border-[var(--border-hairline)] pt-6">
               <div>
-                <div className="font-mono text-xl font-semibold">6</div>
+                <div className="font-mono text-xl font-semibold">
+                  {categories.length}
+                </div>
                 <div className="text-xs text-[var(--text-secondary)]">
                   Equipment Categories
                 </div>
@@ -221,7 +245,6 @@ export default function SpatialHero3D() {
             </div>
           </motion.div>
 
-
           <motion.div
             initial={{ opacity: 0, scale: 0.94 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -232,7 +255,6 @@ export default function SpatialHero3D() {
             style={{ perspective: 1300 }}
             className="relative flex flex-col items-center justify-center py-6 lg:col-span-6"
           >
-           
             <motion.div
               animate={{ rotate: 360 }}
               transition={{
@@ -253,7 +275,6 @@ export default function SpatialHero3D() {
               className="pointer-events-none absolute h-[320px] w-[320px] rounded-full border border-[#9d7cd8]/20"
             />
 
-           
             <motion.div
               style={{
                 rotateX,
@@ -262,7 +283,6 @@ export default function SpatialHero3D() {
               }}
               className="relative w-full max-w-md"
             >
-             
               <div
                 style={{
                   transform: "translateZ(-36px) translateY(18px) scale(0.94)",
@@ -270,9 +290,7 @@ export default function SpatialHero3D() {
                 className="pointer-events-none absolute inset-0 rounded-3xl border border-[#7aa2f7]/25 bg-[#111722]/60"
               />
 
-              
               <div className="relative overflow-hidden rounded-3xl border border-[#7aa2f7]/35 bg-[var(--bg-surface)]/95 p-5 shadow-2xl">
-               
                 <motion.div
                   style={{ background: glare }}
                   className="pointer-events-none absolute inset-0 z-10"
@@ -290,7 +308,6 @@ export default function SpatialHero3D() {
                   </span>
                 </div>
 
-               
                 <div className="relative h-56 w-full overflow-hidden rounded-2xl border border-[var(--border-hairline)]">
                   <img
                     src={activeItem.image}
@@ -323,7 +340,6 @@ export default function SpatialHero3D() {
                   </div>
                 </div>
 
-               
                 <div className="relative z-20 mt-4 flex flex-wrap gap-2">
                   {activeItem.telemetry.map((spec) => (
                     <span
@@ -351,7 +367,6 @@ export default function SpatialHero3D() {
                 </div>
               </div>
 
-
               <div
                 style={{ transform: "translateZ(42px)" }}
                 className="absolute -right-7 -top-5 hidden items-center gap-2.5 rounded-2xl border border-[#7dcfff]/30 bg-[#111722]/90 px-3.5 py-2.5 shadow-xl sm:flex"
@@ -371,7 +386,6 @@ export default function SpatialHero3D() {
                 </div>
               </div>
 
-          
               <div
                 style={{ transform: "translateZ(36px)" }}
                 className="absolute -left-7 bottom-16 hidden items-center gap-2.5 rounded-2xl border border-[#9d7cd8]/30 bg-[#111722]/90 px-3.5 py-2.5 shadow-xl sm:flex"
@@ -392,7 +406,6 @@ export default function SpatialHero3D() {
               </div>
             </motion.div>
 
-          
             <div className="relative z-20 mt-8 flex flex-wrap items-center justify-center gap-2.5">
               {DECK_ITEMS.map((item, index) => (
                 <button
@@ -405,7 +418,6 @@ export default function SpatialHero3D() {
                   }`}
                 >
                   <Compass className="h-3.5 w-3.5 text-[#7aa2f7]" />
-
                   <span>{item.title.split(" ").slice(0, 2).join(" ")}</span>
                 </button>
               ))}
