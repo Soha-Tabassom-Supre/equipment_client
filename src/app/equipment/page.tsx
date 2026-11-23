@@ -1,8 +1,7 @@
 "use client";
 
-import React, { Suspense, useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import {
   RotateCcw,
   Search,
@@ -26,7 +25,7 @@ type Equipment = {
   brand: string;
   model: string;
   rentalType: RentalType;
-  rentalPrice: number;
+  rentalPrice?: number;
   availableQuantity: number;
   rentalTerms: string;
   location: string;
@@ -37,28 +36,32 @@ type Equipment = {
 };
 
 function getDailyEquivalentPrice(item: Equipment) {
+  const price = Number(item.rentalPrice);
+
+  if (!Number.isFinite(price)) {
+    return Infinity;
+  }
+
   if (item.rentalType === "weekly") {
-    return item.rentalPrice / 7;
+    return price / 7;
   }
 
   if (item.rentalType === "monthly") {
-    return item.rentalPrice / 30;
+    return price / 30;
   }
 
-  return item.rentalPrice;
+  return price;
 }
 
 function AllEquipmentContent() {
-  const searchParams = useSearchParams();
-  const urlCategory = searchParams.get("category") || "All";
-
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [category, setCategory] = useState(urlCategory);
-  const [maxPrice, setMaxPrice] = useState(1500);
+  const [category, setCategory] = useState("All");
+  const [maxPrice, setMaxPrice] = useState<number | null>(null);
+  const [priceInput, setPriceInput] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("recent");
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -119,16 +122,17 @@ function AllEquipmentContent() {
 
         const matchesSearch =
           !q ||
-          item.name.toLowerCase().includes(q) ||
-          item.location.toLowerCase().includes(q) ||
-          item.category.toLowerCase().includes(q) ||
+          item.name?.toLowerCase().includes(q) ||
+          item.location?.toLowerCase().includes(q) ||
+          item.category?.toLowerCase().includes(q) ||
           item.brand?.toLowerCase().includes(q) ||
           item.model?.toLowerCase().includes(q);
 
         const matchesCategory =
           category === "All" || item.category === category;
 
-        const matchesPrice = getDailyEquivalentPrice(item) <= maxPrice;
+        const matchesPrice =
+          maxPrice === null || getDailyEquivalentPrice(item) <= maxPrice;
 
         return matchesSearch && matchesCategory && matchesPrice;
       })
@@ -160,9 +164,26 @@ function AllEquipmentContent() {
   const resetFilters = () => {
     setSearchQuery("");
     setCategory("All");
-    setMaxPrice(1500);
+    setMaxPrice(null);
+    setPriceInput("");
     setSortBy("recent");
     setCurrentPage(1);
+  };
+
+  const handlePriceChange = (value: string) => {
+    setPriceInput(value);
+    setCurrentPage(1);
+
+    if (value.trim() === "") {
+      setMaxPrice(null);
+      return;
+    }
+
+    const parsedPrice = Number(value);
+
+    if (Number.isFinite(parsedPrice) && parsedPrice >= 0) {
+      setMaxPrice(parsedPrice);
+    }
   };
 
   return (
@@ -244,24 +265,22 @@ function AllEquipmentContent() {
 
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2.5">
-              <span className="text-[var(--text-secondary)]">
-                Max:{" "}
-                <strong className="font-mono text-[var(--accent-cyan)]">
-                  ৳{maxPrice.toLocaleString("en-BD")}
-                </strong>
-              </span>
+              <label
+                htmlFor="max-price"
+                className="whitespace-nowrap text-[var(--text-secondary)]"
+              >
+                Max daily price:
+              </label>
 
               <input
-                type="range"
-                min="50"
-                max="1500"
-                step="25"
-                value={maxPrice}
-                onChange={(e) => {
-                  setMaxPrice(Number(e.target.value));
-                  setCurrentPage(1);
-                }}
-                className="accent-[var(--accent-primary)]"
+                id="max-price"
+                type="number"
+                min="0"
+                step="any"
+                placeholder="No limit"
+                value={priceInput}
+                onChange={(e) => handlePriceChange(e.target.value)}
+                className="w-36 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3 py-2 font-mono text-xs outline-none transition focus:border-[var(--accent-primary)]"
               />
             </div>
 
@@ -321,7 +340,7 @@ function AllEquipmentContent() {
                 {item.images && item.images.length > 0 ? (
                   <img
                     src={item.images[0]}
-                    alt={item.name}
+                    alt={item.name || "Equipment"}
                     className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
                   />
                 ) : (
@@ -331,7 +350,7 @@ function AllEquipmentContent() {
                 )}
 
                 <span className="absolute left-3 top-3 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-canvas)]/90 px-2.5 py-1 font-mono text-[10px] uppercase text-[var(--accent-primary)]">
-                  {item.category}
+                  {item.category || "Uncategorized"}
                 </span>
 
                 <ArrowUpRight className="absolute right-3 top-3 h-5 w-5 text-white opacity-0 transition group-hover:opacity-100" />
@@ -340,37 +359,41 @@ function AllEquipmentContent() {
               <div className="space-y-3 p-5">
                 <div>
                   <h2 className="text-base font-semibold transition group-hover:text-[var(--accent-primary)]">
-                    {item.name}
+                    {item.name || "Unnamed Equipment"}
                   </h2>
 
                   <p className="mt-1 text-xs text-[var(--text-secondary)]">
-                    {item.brand} {item.model}
+                    {item.brand || ""} {item.model || ""}
                   </p>
 
                   <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--text-secondary)]">
-                    {item.description}
+                    {item.description || "No description available."}
                   </p>
                 </div>
 
                 <div className="flex items-center justify-between border-t border-[var(--border-hairline)] pt-3">
                   <div className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
                     <MapPin className="h-3.5 w-3.5" />
-                    {item.location}
+                    {item.location || "Location unavailable"}
                   </div>
 
                   <div className="text-right">
                     <p className="font-mono text-lg font-bold text-[var(--accent-cyan)]">
-                      ৳{item.rentalPrice.toLocaleString("en-BD")}
+                      {item.rentalPrice != null &&
+                      Number.isFinite(Number(item.rentalPrice))
+                        ? `৳${Number(item.rentalPrice).toLocaleString("en-BD")}`
+                        : "Price unavailable"}
                     </p>
+
                     <p className="text-[10px] text-[var(--text-secondary)]">
-                      per {item.rentalType}
+                      per {item.rentalType || "rental period"}
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between text-[10px] text-[var(--text-secondary)]">
-                  <span>Condition: {item.condition}</span>
-                  <span>Available: {item.availableQuantity}</span>
+                  <span>Condition: {item.condition || "Not specified"}</span>
+                  <span>Available: {item.availableQuantity ?? 0}</span>
                 </div>
 
                 <div className="text-right text-[10px] text-[var(--accent-primary)]">
@@ -408,15 +431,5 @@ function AllEquipmentContent() {
 }
 
 export default function AllEquipmentPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="p-16 text-center font-mono text-xs text-[var(--text-secondary)]">
-          Loading Fleet Directory...
-        </div>
-      }
-    >
-      <AllEquipmentContent />
-    </Suspense>
-  );
+  return <AllEquipmentContent />;
 }
